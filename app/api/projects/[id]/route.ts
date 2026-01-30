@@ -4,7 +4,7 @@ import { getProject, updateProject } from '@/lib/projects';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -16,7 +16,8 @@ export async function GET(
       );
     }
 
-    const project = await getProject(params.id);
+    const { id } = await params;
+    const project = await getProject(id);
 
     if (!project) {
       return NextResponse.json(
@@ -44,7 +45,7 @@ export async function GET(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await getSession();
@@ -56,7 +57,8 @@ export async function PATCH(
       );
     }
 
-    const project = await getProject(params.id);
+    const { id } = await params;
+    const project = await getProject(id);
 
     if (!project) {
       return NextResponse.json(
@@ -104,7 +106,7 @@ export async function PATCH(
       );
     }
 
-    const updated = await updateProject(params.id, updateData);
+    const updated = await updateProject(id, updateData);
 
     return NextResponse.json(updated, { status: 200 });
   } catch (error) {
