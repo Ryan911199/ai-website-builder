@@ -18,9 +18,11 @@ import type {
   LanguageModelV3,
   LanguageModelV3CallOptions,
   LanguageModelV3StreamPart,
+  LanguageModelV3FinishReason,
+  LanguageModelV3Usage,
+  SharedV3Warning,
 } from "@ai-sdk/provider";
 
-// MiniMax API Types
 interface MiniMaxMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -33,7 +35,7 @@ interface MiniMaxChatCompletionRequest {
   top_p?: number;
   max_tokens?: number;
   stream?: boolean;
-  reasoning_split?: boolean; // MiniMax-specific: separate thinking content
+  reasoning_split?: boolean;
 }
 
 interface MiniMaxChatCompletionChoice {
@@ -64,7 +66,6 @@ interface MiniMaxChatCompletionResponse {
   };
 }
 
-// Provider Settings
 interface MiniMaxSettings {
   /**
    * Base URL for the MiniMax API.
@@ -86,7 +87,6 @@ interface MiniMaxSettings {
   reasoningSplit?: boolean;
 }
 
-// Model Settings
 interface MiniMaxModelSettings {
   /**
    * Temperature for response generation.
@@ -106,11 +106,39 @@ interface MiniMaxModelSettings {
   maxTokens?: number;
 }
 
-/**
- * MiniMax Chat Language Model implementing LanguageModelV3 interface
- */
+function createV3Usage(
+  inputTokens: number,
+  outputTokens: number
+): LanguageModelV3Usage {
+  return {
+    inputTokens: {
+      total: inputTokens,
+      noCache: inputTokens,
+      cacheRead: undefined,
+      cacheWrite: undefined,
+    },
+    outputTokens: {
+      total: outputTokens,
+      text: outputTokens,
+      reasoning: undefined,
+    },
+  };
+}
+
+function mapFinishReason(
+  reason: string | null | undefined
+): LanguageModelV3FinishReason {
+  const unified = (() => {
+    if (reason === "stop") return "stop" as const;
+    if (reason === "length") return "length" as const;
+    return "other" as const;
+  })();
+
+  return { unified, raw: reason ?? undefined };
+}
+
 class MiniMaxChatLanguageModel implements LanguageModelV3 {
-  readonly specificationVersion = "V3" as const;
+  readonly specificationVersion = "v3" as const;
   readonly provider = "minimax";
   readonly modelId: string;
   readonly supportedUrls = {};
@@ -139,9 +167,6 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
     }
   }
 
-  /**
-   * Convert AI SDK prompt to MiniMax message format
-   */
   private convertPrompt(
     prompt: LanguageModelV3CallOptions["prompt"]
   ): MiniMaxMessage[] {
@@ -155,9 +180,9 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
             content:
               typeof message.content === "string"
                 ? message.content
-                : message.content
+                : (message.content as Array<{ type: string; text?: string }>)
                     .filter((part) => part.type === "text")
-                    .map((part) => (part as { type: "text"; text: string }).text)
+                    .map((part) => part.text ?? "")
                     .join("\n"),
           });
           break;
@@ -165,9 +190,9 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
         case "user":
           messages.push({
             role: "user",
-            content: message.content
+            content: (message.content as Array<{ type: string; text?: string }>)
               .filter((part) => part.type === "text")
-              .map((part) => part.text)
+              .map((part) => part.text ?? "")
               .join("\n"),
           });
           break;
@@ -175,9 +200,9 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
         case "assistant":
           messages.push({
             role: "assistant",
-            content: message.content
+            content: (message.content as Array<{ type: string; text?: string }>)
               .filter((part) => part.type === "text")
-              .map((part) => part.text)
+              .map((part) => part.text ?? "")
               .join(""),
           });
           break;
@@ -185,10 +210,17 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
         case "tool":
           // MiniMax doesn't have a dedicated tool role in basic API
           // Tool results would be passed as user messages in practice
-          messages.push({
-            role: "user",
-            content: `Tool result for ${message.content[0].toolCallId}: ${JSON.stringify(message.content[0].result)}`,
-          });
+          const toolContent = message.content as Array<{
+            type: string;
+            toolCallId?: string;
+            result?: unknown;
+          }>;
+          if (toolContent[0]) {
+            messages.push({
+              role: "user",
+              content: `Tool result for ${toolContent[0].toolCallId ?? "unknown"}: ${JSON.stringify(toolContent[0].result ?? {})}`,
+            });
+          }
           break;
       }
     }
@@ -196,9 +228,6 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
     return messages;
   }
 
-  /**
-   * Build request body for MiniMax API
-   */
   private buildRequestBody(
     options: LanguageModelV3CallOptions,
     stream: boolean
@@ -217,25 +246,6 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
     };
   }
 
-  /**
-   * Map MiniMax finish reason to AI SDK finish reason
-   */
-  private mapFinishReason(
-    reason: string | null | undefined
-  ): "stop" | "length" | "content-filter" | "tool-calls" | "error" | "other" {
-    switch (reason) {
-      case "stop":
-        return "stop";
-      case "length":
-        return "length";
-      default:
-        return "other";
-    }
-  }
-
-  /**
-   * Non-streaming generation
-   */
   async doGenerate(options: LanguageModelV3CallOptions) {
     const body = this.buildRequestBody(options, false);
 
@@ -264,24 +274,20 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
           text: choice.message?.content ?? "",
         },
       ],
-      finishReason: this.mapFinishReason(choice.finish_reason),
-      usage: {
-        inputTokens: data.usage?.prompt_tokens ?? 0,
-        outputTokens: data.usage?.completion_tokens ?? 0,
-        totalTokens: data.usage?.total_tokens ?? 0,
-      },
+      finishReason: mapFinishReason(choice.finish_reason),
+      usage: createV3Usage(
+        data.usage?.prompt_tokens ?? 0,
+        data.usage?.completion_tokens ?? 0
+      ),
       request: { body },
       response: { body: data },
-      warnings: [],
+      warnings: [] as SharedV3Warning[],
     };
   }
 
-  /**
-   * Streaming generation
-   */
   async doStream(options: LanguageModelV3CallOptions) {
     const body = this.buildRequestBody(options, true);
-    const warnings: Array<{ type: string; message: string }> = [];
+    const warnings: SharedV3Warning[] = [];
 
     const response = await fetch(`${this.baseURL}/chat/completions`, {
       method: "POST",
@@ -298,27 +304,23 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
       throw new Error(`MiniMax API error: ${response.status} - ${errorText}`);
     }
 
-    // Transform SSE stream to AI SDK stream format
     const stream = this.createStreamTransformer(response, warnings);
 
     return { stream, warnings };
   }
 
-  /**
-   * Create stream transformer for SSE responses
-   */
   private createStreamTransformer(
     response: Response,
-    warnings: Array<{ type: string; message: string }>
+    warnings: SharedV3Warning[]
   ): ReadableStream<LanguageModelV3StreamPart> {
     const reader = response.body!.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
     let isFirstChunk = true;
+    let textStarted = false;
     let inputTokens = 0;
     let outputTokens = 0;
-
-    const mapFinishReason = this.mapFinishReason.bind(this);
+    const textId = `text-${Date.now()}`;
 
     return new ReadableStream<LanguageModelV3StreamPart>({
       async pull(controller) {
@@ -339,14 +341,13 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
 
             const data = line.slice(6).trim();
             if (data === "[DONE]") {
+              if (textStarted) {
+                controller.enqueue({ type: "text-end", id: textId });
+              }
               controller.enqueue({
                 type: "finish",
-                finishReason: "stop",
-                usage: {
-                  inputTokens,
-                  outputTokens,
-                  totalTokens: inputTokens + outputTokens,
-                },
+                finishReason: { unified: "stop" as const, raw: undefined },
+                usage: createV3Usage(inputTokens, outputTokens),
               });
               controller.close();
               return;
@@ -355,7 +356,6 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
             try {
               const chunk: MiniMaxChatCompletionResponse = JSON.parse(data);
 
-              // Send stream-start on first chunk
               if (isFirstChunk) {
                 controller.enqueue({ type: "stream-start", warnings });
                 isFirstChunk = false;
@@ -364,29 +364,33 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
               const choice = chunk.choices?.[0];
               if (!choice) continue;
 
-              // Handle text content
               if (choice.delta?.content) {
+                if (!textStarted) {
+                  controller.enqueue({ type: "text-start", id: textId });
+                  textStarted = true;
+                }
                 controller.enqueue({
-                  type: "text",
-                  text: choice.delta.content,
+                  type: "text-delta",
+                  id: textId,
+                  delta: choice.delta.content,
                 });
               }
 
-              // Handle finish reason
               if (choice.finish_reason) {
                 if (chunk.usage) {
                   inputTokens = chunk.usage.prompt_tokens;
                   outputTokens = chunk.usage.completion_tokens;
                 }
 
+                if (textStarted) {
+                  controller.enqueue({ type: "text-end", id: textId });
+                  textStarted = false;
+                }
+
                 controller.enqueue({
                   type: "finish",
                   finishReason: mapFinishReason(choice.finish_reason),
-                  usage: {
-                    inputTokens,
-                    outputTokens,
-                    totalTokens: inputTokens + outputTokens,
-                  },
+                  usage: createV3Usage(inputTokens, outputTokens),
                 });
               }
             } catch {
@@ -405,23 +409,12 @@ class MiniMaxChatLanguageModel implements LanguageModelV3 {
   }
 }
 
-/**
- * Create a MiniMax provider instance
- */
 export function createMinimax(settings: MiniMaxSettings = {}) {
   return {
-    /**
-     * Create a chat model instance
-     * @param modelId - Model ID (e.g., "MiniMax-M2.1", "MiniMax-M2.1-lightning")
-     * @param modelSettings - Model-specific settings
-     */
     chat(modelId: string, modelSettings: MiniMaxModelSettings = {}) {
       return new MiniMaxChatLanguageModel(modelId, settings, modelSettings);
     },
 
-    /**
-     * Shorthand for creating the default M2.1 model
-     */
     "minimax-m2.1"(modelSettings: MiniMaxModelSettings = {}) {
       return new MiniMaxChatLanguageModel(
         "MiniMax-M2.1",
@@ -430,9 +423,6 @@ export function createMinimax(settings: MiniMaxSettings = {}) {
       );
     },
 
-    /**
-     * Shorthand for creating the lightning model (faster)
-     */
     "minimax-m2.1-lightning"(modelSettings: MiniMaxModelSettings = {}) {
       return new MiniMaxChatLanguageModel(
         "MiniMax-M2.1-lightning",
@@ -443,10 +433,6 @@ export function createMinimax(settings: MiniMaxSettings = {}) {
   };
 }
 
-/**
- * Default provider instance using environment variable for API key
- */
 export const minimax = createMinimax();
 
-// Export types for external use
 export type { MiniMaxSettings, MiniMaxModelSettings };
