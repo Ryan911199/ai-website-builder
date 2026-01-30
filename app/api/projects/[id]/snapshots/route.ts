@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth/session';
 import { getProject } from '@/lib/projects';
-import { createSnapshot } from '@/lib/projects/snapshots';
+import { createSnapshot, listSnapshots } from '@/lib/projects/snapshots';
 
 export async function POST(
   request: NextRequest,
@@ -58,6 +58,49 @@ export async function POST(
     return NextResponse.json(snapshot, { status: 201 });
   } catch (error) {
     console.error('Create snapshot error:', error);
+     return NextResponse.json(
+       { error: 'Internal server error' },
+       { status: 500 }
+     );
+   }
+}
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await getSession();
+
+    if (!session.isLoggedIn || !session.userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+    const project = await getProject(id);
+
+    if (!project) {
+      return NextResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    if (project.userId !== session.userId) {
+      return NextResponse.json(
+        { error: 'Forbidden' },
+        { status: 403 }
+      );
+    }
+
+    const snapshots = await listSnapshots(id);
+
+    return NextResponse.json(snapshots, { status: 200 });
+  } catch (error) {
+    console.error('List snapshots error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
