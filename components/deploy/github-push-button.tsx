@@ -8,9 +8,10 @@ import { Label } from '@/components/ui/label';
 interface GitHubPushButtonProps {
   projectId: string;
   projectName: string;
+  onPushSuccess?: (repoUrl: string) => void;
 }
 
-export function GitHubPushButton({ projectId, projectName }: GitHubPushButtonProps) {
+export function GitHubPushButton({ projectId, projectName, onPushSuccess }: GitHubPushButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [repoName, setRepoName] = useState(projectName.toLowerCase().replace(/\s+/g, '-'));
@@ -46,7 +47,8 @@ export function GitHubPushButton({ projectId, projectName }: GitHubPushButtonPro
       const data = await response.json();
       setResult(data);
 
-      if (data.success) {
+      if (data.success && data.repoUrl) {
+        onPushSuccess?.(data.repoUrl);
         setTimeout(() => {
           setIsOpen(false);
           setResult(null);

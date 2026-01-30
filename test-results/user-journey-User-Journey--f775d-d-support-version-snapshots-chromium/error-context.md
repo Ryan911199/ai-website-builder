@@ -1,0 +1,58 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary:
+      - generic [ref=e3]:
+        - heading "AI Builder" [level=1] [ref=e4]
+        - generic [ref=e6]:
+          - button [disabled]:
+            - img
+      - generic [ref=e7]:
+        - button "New Project" [ref=e8]:
+          - img
+          - text: New Project
+        - generic:
+          - heading "Recent Projects" [level=2]
+          - button "E-commerce Store" [ref=e9]:
+            - img
+            - text: E-commerce Store
+          - button "Portfolio Site" [ref=e10]:
+            - img
+            - text: Portfolio Site
+          - button "Landing Page" [ref=e11]:
+            - img
+            - text: Landing Page
+      - generic [ref=e12]:
+        - button "Settings" [ref=e13]:
+          - img
+          - text: Settings
+        - button "Sign Out" [ref=e14]:
+          - img
+          - text: Sign Out
+    - main [ref=e15]:
+      - generic [ref=e17]:
+        - img [ref=e20]
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - generic [ref=e24]:
+              - generic [ref=e25]: Chat
+              - generic [ref=e26]: Setup Required
+            - combobox [ref=e27]:
+              - text: Anthropic (Claude)
+              - img
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - textbox "Describe your website..." [ref=e31]
+              - button "Send" [disabled]:
+                - img
+                - generic: Send
+            - generic [ref=e32]: AI can make mistakes. Review generated code carefully.
+        - generic [ref=e33]:
+          - generic [ref=e35]:
+            - button "Code" [ref=e36]
+            - button "Preview" [ref=e37]
+          - generic [ref=e38]: No files to display
+  - region "Notifications alt+T"
+```

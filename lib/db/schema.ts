@@ -91,6 +91,24 @@ export const snapshotsRelations = relations(snapshots, ({ one }) => ({
   project: one(projects, { fields: [snapshots.projectId], references: [projects.id] }),
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ one, many }) => ({
   projects: many(projects),
+  settings: one(userSettings),
+}));
+
+// User Settings table - API keys and preferences
+export const userSettings = sqliteTable('user_settings', {
+  id: text('id').primaryKey(), // nanoid
+  userId: text('user_id')
+    .references(() => users.id, { onDelete: 'cascade' })
+    .notNull()
+    .unique(),
+  claudeApiKey: text('claude_api_key'), // encrypted
+  minimaxApiKey: text('minimax_api_key'), // encrypted
+  selectedProvider: text('selected_provider').default('claude'), // 'claude' | 'minimax'
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull(),
+});
+
+export const userSettingsRelations = relations(userSettings, ({ one }) => ({
+  user: one(users, { fields: [userSettings.userId], references: [users.id] }),
 }));

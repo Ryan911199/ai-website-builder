@@ -1,0 +1,65 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - complementary:
+      - generic [ref=e3]:
+        - heading "AI Builder" [level=1] [ref=e4]
+        - button "Toggle theme" [ref=e7]:
+          - img
+      - generic [ref=e8]:
+        - button "New Project" [ref=e9]:
+          - img
+          - text: New Project
+        - generic:
+          - heading "Recent Projects" [level=2]
+          - button "E-commerce Store" [ref=e10]:
+            - img
+            - text: E-commerce Store
+          - button "Portfolio Site" [ref=e11]:
+            - img
+            - text: Portfolio Site
+          - button "Landing Page" [ref=e12]:
+            - img
+            - text: Landing Page
+      - generic [ref=e13]:
+        - button "Settings" [ref=e14]:
+          - img
+          - text: Settings
+        - button "Sign Out" [ref=e15]:
+          - img
+          - text: Sign Out
+    - main [ref=e16]:
+      - generic [ref=e18]:
+        - img [ref=e21]
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - generic [ref=e25]:
+              - generic [ref=e26]: Chat
+              - generic [ref=e27]: Setup Required
+            - combobox [ref=e28]:
+              - text: Anthropic (Claude)
+              - img
+          - generic [ref=e29]:
+            - generic [ref=e30]:
+              - img [ref=e32]
+              - paragraph [ref=e37]: Create a simple React button component
+            - generic [ref=e39]: Thinking...
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - textbox "Describe your website..." [disabled] [ref=e42]
+              - button "Send" [disabled]:
+                - img
+                - generic: Send
+            - generic [ref=e43]: AI can make mistakes. Review generated code carefully.
+        - generic [ref=e44]:
+          - generic [ref=e46]:
+            - button "Code" [ref=e47]
+            - button "Preview" [ref=e48]
+          - generic [ref=e49]: No files to display
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e55] [cursor=pointer]:
+    - img [ref=e56]
+  - alert [ref=e59]
+```
