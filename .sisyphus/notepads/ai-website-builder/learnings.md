@@ -104,3 +104,90 @@ Successfully implemented a secure iframe sandbox component for rendering static 
 - Provider settings and model settings separated for clean API
 - Mock fetch in tests by reassigning `globalThis.fetch`
 
+
+## Task 13: POST /api/projects/:id/snapshots Endpoint - COMPLETE
+
+### Summary
+Created POST endpoint for creating version snapshots with comprehensive validation and error handling. 33 tests covering all scenarios.
+
+### Implementation Details
+
+**File**: `app/api/projects/[id]/snapshots/route.ts`
+- **Pattern**: Follows established API route pattern from artifacts endpoint
+- **Authentication**: Session validation with `getSession()` check
+- **Authorization**: Project ownership validation (`project.userId === session.userId`)
+- **Input Validation**:
+  - `files` must be an object (not null, not array)
+  - `files` object must have at least one key
+  - `messageId` is optional string parameter
+- **Service Call**: `createSnapshot(projectId, files, messageId?)`
+- **Response**: 201 status with created snapshot object
+- **Error Handling**: 400, 401, 403, 404, 500 with descriptive messages
+
+**Tests**: `tests/api/snapshots-post.test.ts` (33 tests)
+- **Authentication** (2 tests): Rejects unauthenticated, accepts valid session
+- **Project Ownership** (2 tests): Allows own project, denies other user's project
+- **Files Validation** (7 tests):
+  - Rejects non-object, null, array
+  - Rejects empty object
+  - Accepts single and multiple files
+  - Accepts special characters in paths
+- **MessageId** (3 tests): Optional, accepts string/null/undefined
+- **Response Format** (8 tests):
+  - Status codes: 201, 400, 401, 403, 404, 500
+  - Snapshot object structure with required fields
+  - MessageId handling in response
+- **Error Handling** (4 tests): Missing files, malformed JSON, DB errors, error messages
+- **Integration** (5 tests): Complete scenarios with valid/invalid data combinations
+
+### Key Patterns
+
+1. **Next.js 15 Async Params**:
+   ```typescript
+   { params }: { params: Promise<{ id: string }> }
+   const { id } = await params;
+   ```
+
+2. **Validation Order**:
+   - Session check first (401)
+   - Project existence (404)
+   - Ownership check (403)
+   - Input validation (400)
+   - Service call (201 or 500)
+
+3. **Files Object Validation**:
+   ```typescript
+   if (!files || typeof files !== 'object' || Array.isArray(files)) {
+     return NextResponse.json({ error: 'Files must be an object' }, { status: 400 });
+   }
+   if (Object.keys(files).length === 0) {
+     return NextResponse.json({ error: 'Files object cannot be empty' }, { status: 400 });
+   }
+   ```
+
+4. **Error Handling**:
+   - Try-catch wraps entire handler
+   - console.error logs for debugging
+   - Generic 500 response for unexpected errors
+
+### Test Results
+
+✅ All 33 tests passing
+✅ All 22 service layer tests still passing (55 total)
+✅ No TypeScript errors in project context
+✅ Follows established patterns from artifacts endpoint
+
+### Files Created
+
+- `app/api/projects/[id]/snapshots/route.ts` - API endpoint (60 lines)
+- `tests/api/snapshots-post.test.ts` - Test suite (300+ lines, 33 tests)
+
+### Next Steps
+
+Task 13 complete. Ready for:
+- Task 14: GET /api/projects/:id/snapshots (list snapshots)
+- Task 15: GET /api/projects/:id/snapshots/:snapshotId (get single snapshot)
+- Task 16: DELETE /api/projects/:id/snapshots/:snapshotId (delete snapshot)
+- Task 17: Snapshot UI components
+
+**Date**: 2026-01-30
