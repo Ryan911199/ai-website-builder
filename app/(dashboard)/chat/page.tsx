@@ -9,15 +9,52 @@ import { CodeEditor } from '@/components/editor/code-editor';
 import { FileTabs } from '@/components/editor/file-tabs';
 import { SandpackPreview } from '@/components/preview/sandpack-preview';
 import { parseAIResponse, ParsedFile } from '@/lib/ai/parse-files';
+import { DeploymentPanel } from '@/components/deploy/deployment-panel';
+import { ProviderSelector } from '@/components/chat/provider-selector';
+import { Badge } from '@/components/ui/badge';
+import { ProjectList } from '@/components/sidebar/project-list';
+import { toast } from 'sonner';
 
 export default function ChatPage() {
   const [input, setInput] = useState('');
   const [files, setFiles] = useState<ParsedFile[]>([]);
   const [activeFileId, setActiveFileId] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'code' | 'preview'>('code');
+  const [projectId] = useState(() => `project-${Date.now()}`);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [provider, setProvider] = useState('claude');
+  const [keys, setKeys] = useState<{ claude: boolean; minimax: boolean }>({ claude: false, minimax: false });
+
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.selectedProvider) {
+          setProvider(data.selectedProvider);
+        }
+        setKeys({
+          claude: !!data.claudeApiKey,
+          minimax: !!data.minimaxApiKey,
+        });
+      })
+      .catch((err) => console.error('Failed to load settings', err));
+  }, []);
+
+  const isConfigured = provider === 'claude' ? keys.claude : keys.minimax;
 
   const { messages, sendMessage, status } = useChat({
-    transport: new DefaultChatTransport({ api: '/api/chat' }),
+    transport: new DefaultChatTransport({ 
+      api: '/api/chat',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: {
+        provider,
+      },
+    }),
+    onError: (error) => {
+      toast.error(`Error: ${error.message}`);
+    },
   });
 
   const isLoading = status === 'streaming' || status === 'submitted';
@@ -58,9 +95,38 @@ export default function ChatPage() {
 
   const activeFile = files.find(f => f.path === activeFileId);
 
+  const handleProjectSelect = (id: string) => {
+    setSelectedProjectId(id);
+    toast.success(`Selected project: ${id}`);
+  };
+
+  const handleNewProject = () => {
+    toast.info('New project creation coming soon');
+  };
+
   return (
     <div className="flex h-full overflow-hidden">
-      <div className="flex flex-col w-1/2 border-r h-full">
+      {/* Project List Sidebar */}
+      <div className="w-64 border-r h-full bg-muted/10 hidden md:block flex-shrink-0">
+        <ProjectList 
+          onProjectSelect={handleProjectSelect} 
+          onNewProject={handleNewProject} 
+        />
+      </div>
+
+      {/* Chat Area */}
+      <div className="flex flex-col flex-1 border-r h-full min-w-0">
+        <div className="p-2 border-b flex justify-between items-center bg-muted/30">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium px-2">Chat</span>
+            {isConfigured ? (
+              <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 h-5">Ready</Badge>
+            ) : (
+              <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200 h-5">Setup Required</Badge>
+            )}
+          </div>
+          <ProviderSelector value={provider} onValueChange={setProvider} />
+        </div>
         <MessageList messages={messages} isLoading={isLoading} />
         <ChatInput
           input={input}
@@ -69,7 +135,7 @@ export default function ChatPage() {
           isLoading={isLoading}
         />
       </div>
-      <div className="flex flex-col w-1/2 h-full bg-background border-l">
+      <div className="flex flex-col flex-1 h-full bg-background border-l min-w-0">
         <div className="flex items-center justify-between border-b px-2 py-1 bg-muted/30">
           <div className="flex space-x-1">
             <button
@@ -138,6 +204,12 @@ export default function ChatPage() {
             }
           />
         )}
+
+        <DeploymentPanel
+          projectId={projectId}
+          projectName="ai-website"
+          hasFiles={files.length > 0}
+        />
       </div>
     </div>
   );
