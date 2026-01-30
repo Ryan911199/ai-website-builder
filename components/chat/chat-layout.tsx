@@ -4,6 +4,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, MessageSquare, Settings, LogOut, Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 interface ChatLayoutProps {
   children: React.ReactNode;
@@ -30,9 +31,14 @@ export function ChatLayout({ children }: ChatLayoutProps) {
       >
         <div className="p-4 border-b border-border flex items-center justify-between">
           <h1 className="font-bold text-lg tracking-tight">AI Builder</h1>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
-            <Menu className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-1">
+            <div className="hidden lg:block">
+              <ThemeToggle />
+            </div>
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsSidebarOpen(false)}>
+              <Menu className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -78,7 +84,7 @@ export function ChatLayout({ children }: ChatLayoutProps) {
             <Menu className="h-5 w-5" />
           </Button>
           <span className="font-semibold">Chat</span>
-          <div className="w-9" />
+          <ThemeToggle />
         </header>
         
         <div className="flex-1 overflow-hidden relative">
