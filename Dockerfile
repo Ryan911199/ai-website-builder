@@ -1,49 +1,64 @@
-# Multi-stage build for AI Website Builder
-# Stage 1: Build
-FROM oven/bun:1 AS builder
-
+FROM node:20-slim AS deps
 WORKDIR /app
 
-# Install dependencies
-COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    sqlite3 \
+    libsqlite3-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy source code
+COPY package.json bun.lock* package-lock.json* yarn.lock* pnpm-lock.yaml* ./
+
+RUN npm install
+
+FROM node:20-slim AS builder
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    sqlite3 \
+    libsqlite3-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build Next.js application
-RUN bun run build
+RUN npm rebuild better-sqlite3 && npm rebuild bcrypt
 
-# Stage 2: Production
-FROM oven/bun:1-slim
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
 
+FROM node:20-slim AS runner
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apt-get update && apt-get install -y dumb-init && rm -rf /var/lib/apt/lists/*
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy built application from builder
-COPY --from=builder /app/.next ./.next
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/package.json ./
-COPY --from=builder /app/bun.lock ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bindings ./node_modules/bindings
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/file-uri-to-path ./node_modules/file-uri-to-path
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcrypt ./node_modules/bcrypt
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/node-addon-api ./node_modules/node-addon-api
 
-# Install production dependencies only
-RUN bun install --frozen-lockfile --production
+RUN mkdir -p /app/data && chown -R nextjs:nodejs /app/data
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+USER nextjs
 
-# Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD bun run -e "const res = await fetch('http://localhost:3000'); process.exit(res.ok ? 0 : 1)" || exit 1
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["dumb-init", "--"]
-
-# Start application
-CMD ["bun", "run", "start"]
+CMD ["node", "server.js"]

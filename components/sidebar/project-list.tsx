@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, Plus } from 'lucide-react';
-import { Project } from '@/lib/projects';
+import type { Project } from '@/lib/projects';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
