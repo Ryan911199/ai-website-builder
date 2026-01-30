@@ -132,48 +132,162 @@ data: [DONE]
 | Text API (M2.1, M2) | 20,000,000 |
 | Speech API | 20,000 |
 
-## Usage Example
+## Production Usage
+
+The production provider is located at `lib/ai/providers/minimax.ts`.
+
+### Basic Usage
 
 ```typescript
-import { createMinimax } from './lib/ai/providers/minimax-prototype';
-import { streamText } from 'ai';
+import { createMinimax, minimax, getMiniMaxModel } from '@/lib/ai/providers/minimax';
+import { streamText, generateText } from 'ai';
 
-const minimax = createMinimax({
-  apiKey: process.env.MINIMAX_API_KEY,
+// Option 1: Use default provider (reads from MINIMAX_API_KEY env var)
+const result = await streamText({
+  model: minimax['minimax-m2.1'](),
+  prompt: 'Create a React counter component',
 });
 
+// Option 2: Create provider with custom settings
+const customMinimax = createMinimax({
+  apiKey: process.env.MINIMAX_API_KEY,
+  maxRetries: 3,
+  retryDelay: 1000,
+});
+
+const model = customMinimax['minimax-m2.1']();
+
+// Option 3: Quick helper function
+const model = getMiniMaxModel(process.env.MINIMAX_API_KEY);
+```
+
+### Streaming Responses
+
+```typescript
+import { minimax } from '@/lib/ai/providers/minimax';
+import { streamText } from 'ai';
+
 const result = await streamText({
-  model: minimax.chat('MiniMax-M2.1'),
+  model: minimax['minimax-m2.1'](),
   prompt: 'Hello, how are you?',
 });
 
 for await (const chunk of result.textStream) {
   process.stdout.write(chunk);
 }
+
+console.log('Usage:', await result.usage);
+console.log('Finish reason:', await result.finishReason);
 ```
 
-## Implementation Notes for Production
+### Non-Streaming Responses
 
-### Considerations for Task 10
+```typescript
+import { minimax } from '@/lib/ai/providers/minimax';
+import { generateText } from 'ai';
 
-1. **Error handling**: Implement proper retry logic with exponential backoff for codes 1000, 1001, 1002, 1024
-2. **API key rotation**: Support multiple API keys for high availability
-3. **Token counting**: MiniMax counts tokens differently - test with actual API
-4. **Content filtering**: Handle `input_sensitive` and `output_sensitive` flags gracefully
-5. **Tool calling**: Full tool/function calling support via `tools` parameter (not the deprecated `function_call`)
+const result = await generateText({
+  model: minimax['minimax-m2.1'](),
+  prompt: 'What is 2 + 2?',
+});
 
-### Streaming Caveats
+console.log('Response:', result.text);
+```
 
-1. MiniMax streams may have different chunking behavior than OpenAI
-2. Usage statistics are only available after stream completes
-3. Empty chunks may occur - filter these out
+### Model Selection
 
-### Testing Without API Key
+```typescript
+import { createMinimax, MINIMAX_MODELS, type MiniMaxModelId } from '@/lib/ai/providers/minimax';
 
-The prototype includes mock responses for testing without a real API key:
+const provider = createMinimax({ apiKey: process.env.MINIMAX_API_KEY });
+
+// Standard model (recommended for coding)
+const standardModel = provider['minimax-m2.1']();
+
+// Lightning model (faster)
+const lightningModel = provider['minimax-m2.1-lightning']();
+
+// Custom model ID
+const customModel = provider.chat('MiniMax-M2');
+```
+
+### Error Handling
+
+```typescript
+import { createMinimax, MiniMaxAPIError, MINIMAX_ERROR_CODES } from '@/lib/ai/providers/minimax';
+
+try {
+  const result = await generateText({
+    model: minimax['minimax-m2.1'](),
+    prompt: 'Hello',
+  });
+} catch (error) {
+  if (error instanceof MiniMaxAPIError) {
+    console.error('MiniMax Error:', error.code, error.message);
+    console.error('Retryable:', error.isRetryable);
+    console.error('Description:', MINIMAX_ERROR_CODES[error.code]);
+  }
+}
+```
+
+### Provider Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `apiKey` | string | `MINIMAX_API_KEY` env | API key for authentication |
+| `baseURL` | string | `https://api.minimax.io/v1` | Base URL for API |
+| `reasoningSplit` | boolean | `false` | Separate reasoning content |
+| `maxRetries` | number | `3` | Max retries for rate limits |
+| `retryDelay` | number | `1000` | Initial retry delay (ms) |
+
+### Model Settings
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `temperature` | number | `1.0` | Range: (0.0, 1.0] |
+| `topP` | number | `0.95` | Top-p sampling |
+| `maxTokens` | number | undefined | Max tokens to generate |
+
+## Testing
+
+### Unit Tests (Mocked)
+
 ```bash
-MINIMAX_API_KEY=test bun run scripts/test-minimax.ts
+bun run test minimax
 ```
+
+### Integration Tests (Real API)
+
+```bash
+MINIMAX_API_KEY=your-key bun run scripts/test-minimax-integration.ts
+```
+
+## Implementation Notes
+
+### Rate Limit Handling
+
+The provider automatically retries on rate limit errors (code 1002) with exponential backoff:
+- Initial delay: 1000ms (configurable)
+- Backoff multiplier: 2x
+- Max retries: 3 (configurable)
+
+### Retryable Error Codes
+
+| Code | Description |
+|------|-------------|
+| 1000 | Unknown error |
+| 1001 | Request timeout |
+| 1002 | Rate limit exceeded |
+| 1024 | Internal error |
+
+### Non-Retryable Error Codes
+
+| Code | Description |
+|------|-------------|
+| 1004 | Not authorized |
+| 1008 | Insufficient balance |
+| 1039 | Token limit exceeded |
+| 2013 | Invalid parameters |
 
 ## References
 
