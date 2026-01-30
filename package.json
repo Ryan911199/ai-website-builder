@@ -17,8 +17,10 @@
     "db:seed": "bun scripts/seed-user.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.31",
     "@ai-sdk/provider": "^3.0.6",
     "@ai-sdk/provider-utils": "^4.0.11",
+    "@ai-sdk/react": "^3.0.64",
     "@radix-ui/react-label": "^2.1.8",
     "@radix-ui/react-slot": "^1.2.4",
     "ai": "^6.0.62",
