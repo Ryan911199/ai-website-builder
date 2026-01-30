@@ -70,3 +70,37 @@ Successfully implemented a secure iframe sandbox component for rendering static 
 3. JavaScript module support via importmap
 4. Preview size customization
 5. Code editor integration for live editing
+
+## Task 10: MiniMax 2.1 Provider Implementation
+
+### Patterns & Conventions
+
+1. **Vercel AI SDK v6 LanguageModelV3 Interface**:
+   - `specificationVersion = "v3"` is required
+   - `doGenerate()` for non-streaming, `doStream()` for streaming
+   - Stream uses `stream-start`, `text-start`, `text-delta`, `text-end`, `finish` parts
+   - Usage must use `LanguageModelV3Usage` structure with nested `inputTokens` and `outputTokens`
+
+2. **Provider Factory Pattern**:
+   - Export `createMinimax()` factory function
+   - Export default `minimax` instance
+   - Export convenience `getMiniMaxModel()` helper
+   - Include model shortcuts like `provider['minimax-m2.1']()`
+
+3. **Error Handling Pattern**:
+   - Custom `MiniMaxAPIError` class with `code`, `status`, `isRetryable`
+   - Static `fromResponse()` factory method
+   - Export `MINIMAX_ERROR_CODES` for debugging
+
+4. **Retry Logic**:
+   - Exponential backoff with configurable `retryDelay` and `maxRetries`
+   - Only retry on specific retryable error codes
+   - Log retry attempts with `console.warn`
+
+### Successful Approaches
+
+- MiniMax uses OpenAI-compatible API format at `https://api.minimax.io/v1/chat/completions`
+- SSE streaming format is identical to OpenAI (data: {json}\n\ndata: [DONE])
+- Provider settings and model settings separated for clean API
+- Mock fetch in tests by reassigning `globalThis.fetch`
+
