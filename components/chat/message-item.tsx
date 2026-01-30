@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { User, Bot } from 'lucide-react';
 import { type UIMessage } from 'ai';
+import { parseAIResponse } from '@/lib/ai/parse-files';
+import { detectProjectType, extractStaticFiles } from '@/lib/preview/detect-project-type';
+import { IframePreview } from '@/components/preview/iframe-preview';
 
 interface MessageItemProps {
   message: UIMessage;
@@ -17,7 +20,7 @@ function getMessageText(message: UIMessage): string {
     .join('');
 }
 
-function renderContent(content: string) {
+function renderContent(content: string, showPreview: boolean = false) {
   const parts = content.split(/(```[\s\S]*?```)/g);
 
   return parts.map((part, index) => {
@@ -49,6 +52,19 @@ export function MessageItem({ message }: MessageItemProps) {
   const isUser = message.role === 'user';
   const content = getMessageText(message);
 
+  const { projectType, files, staticFiles } = useMemo(() => {
+    try {
+      const parsedFiles = parseAIResponse(content);
+      const type = detectProjectType(parsedFiles);
+      const statics = extractStaticFiles(parsedFiles);
+      return { projectType: type, files: parsedFiles, staticFiles: statics };
+    } catch {
+      return { projectType: 'unknown', files: [], staticFiles: { html: '', css: '', js: '' } };
+    }
+  }, [content]);
+
+  const hasPreview = !isUser && projectType === 'static-html' && staticFiles.html;
+
   if (!content) {
     return null;
   }
@@ -66,22 +82,31 @@ export function MessageItem({ message }: MessageItemProps) {
 
       <div
         className={cn(
-          'flex flex-col max-w-[80%] lg:max-w-[70%]',
-          isUser ? 'items-end' : 'items-start'
+          'flex flex-col',
+          isUser ? 'items-end max-w-[80%] lg:max-w-[70%]' : 'items-start w-full'
         )}
       >
+        {hasPreview && (
+          <div className="w-full max-w-2xl mb-4 h-96">
+            <IframePreview
+              html={staticFiles.html}
+              css={staticFiles.css}
+              js={staticFiles.js}
+            />
+          </div>
+        )}
+
         <div
           className={cn(
             'rounded-lg px-4 py-3 text-sm shadow-sm',
             isUser
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted text-foreground border border-border'
+              ? 'bg-primary text-primary-foreground max-w-[80%] lg:max-w-[70%]'
+              : 'bg-muted text-foreground border border-border',
+            hasPreview && 'max-w-2xl'
           )}
         >
           {renderContent(content)}
         </div>
-
-
       </div>
     </div>
   );
